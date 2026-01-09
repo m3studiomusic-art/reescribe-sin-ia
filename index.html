@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Reescribe sin sonar a IA</title>
+  <style>
+    body{font-family:system-ui;margin:0;background:#f6f7fb}
+    .wrap{max-width:920px;margin:40px auto;padding:16px}
+    .card{background:#fff;border:1px solid #e6e7ee;border-radius:16px;padding:16px;box-shadow:0 6px 30px rgba(0,0,0,.06)}
+    textarea{width:100%;padding:12px;border-radius:12px;border:1px solid #d1d5db;resize:vertical}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+    button{padding:10px 14px;border-radius:12px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-weight:600}
+    button.primary{background:#2563eb;border-color:#2563eb;color:#fff}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .chip{border-radius:999px}
+    .chip.active{background:#111;color:#fff;border-color:#111}
+    pre{white-space:pre-wrap;background:#fafafa;border:1px solid #e6e7ee;border-radius:12px;padding:12px}
+    .notice{padding:12px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa}
+    .error{padding:12px;border-radius:12px;background:#fee2e2;border:1px solid #fecaca}
+    a.pay{display:inline-block;margin-top:8px}
+    .small{color:#555;font-size:13px}
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <h1 style="margin:0 0 8px">Reescribe sin sonar a IA</h1>
+    <p style="margin:0 0 18px;color:#444">Pega tu texto, elige un modo y obtén una versión más humana.</p>
+
+    <div class="card">
+      <div class="row" id="modes"></div>
+
+      <textarea id="input" rows="10" placeholder="Pega aquí tu texto…"></textarea>
+
+      <div class="row">
+        <button class="primary" id="btnRewrite">Reescribir</button>
+        <button id="btnClear">Limpiar</button>
+        <button id="btnPro">Tengo código Pro</button>
+      </div>
+
+      <div id="status"></div>
+
+      <div id="resultBlock" style="display:none;margin-top:14px">
+        <h3 style="margin:0 0 8px">Resultado</h3>
+        <pre id="output"></pre>
+        <div class="row">
+          <button id="btnCopy">Copiar</button>
+          <button id="btnAnother">Otra versión</button>
+        </div>
+        <p class="small">Gratis: 2 usos. Pro: ilimitado.</p>
+      </div>
+
+      <div id="paywall" style="display:none;margin-top:14px">
+        <div class="notice">
+          <b>Has gastado tus 2 usos gratis.</b><br/>
+          Apóyame con un café ☕ para desbloquear Pro (ilimitado).
+          <br/>
+          <a class="pay" href="https://www.buymeacoffee.com/TU_USUARIO" target="_blank">
+            Ir a Buy Me a Coffee
+          </a>
+          <p class="small">Después de apoyar, vuelve y pulsa “Tengo código Pro”.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const WORKER_URL = "PEGAREMOS_AQUI_LA_URL_DEL_WORKER";
+  const FREE_USES = 2;
+  const MODES = ["Natural","Profesional humano","Cercano","Directo","Más emocional"];
+
+  let mode = "Natural";
+  let uses = Number(localStorage.getItem("uses") || "0");
+  let pro = localStorage.getItem("pro") === "1";
+
+  const elModes = document.getElementById("modes");
+  const elInput = document.getElementById("input");
+  const elStatus = document.getElementById("status");
+  const elPaywall = document.getElementById("paywall");
+  const elResultBlock = document.getElementById("resultBlock");
+  const elOutput = document.getElementById("output");
+
+  function renderModes(){
+    elModes.innerHTML = "";
+    MODES.forEach(m => {
+      const b = document.createElement("button");
+      b.className = "chip" + (m===mode ? " active" : "");
+      b.textContent = m;
+      b.onclick = () => { mode = m; renderModes(); };
+      elModes.appendChild(b);
+    });
+  }
+  renderModes();
+
+  function setStatus(html, kind=""){
+    elStatus.innerHTML = html ? `<div class="${kind}">${html}</div>` : "";
+  }
+
+  function checkPaywall(){
+    const blocked = !pro && uses >= FREE_USES;
+    elPaywall.style.display = blocked ? "block" : "none";
+    return blocked;
+  }
+  checkPaywall();
+
+  async function callRewrite(variant=false){
+    if (checkPaywall()) return;
+
+    const text = (elInput.value || "").trim();
+    if (!text) { setStatus("Pega un texto primero.", "error"); return; }
+    if (text.length > 6000) { setStatus("Texto demasiado largo.", "error"); return; }
+
+    setStatus("Reescribiendo…", "notice");
+
+    try{
+      const r = await fetch(WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ text, mode, variant })
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.error || "Error");
+
+      elOutput.textContent = data.result;
+      elResultBlock.style.display = "block";
+      setStatus("");
+
+      if (!pro){
+        uses++;
+        localStorage.setItem("uses", String(uses));
+      }
+
+      checkPaywall();
+    }catch(e){
+      setStatus("Error: " + (e.message || e), "error");
+    }
+  }
+
+  document.getElementById("btnRewrite").onclick = () => callRewrite(false);
+  document.getElementById("btnAnother").onclick = () => callRewrite(true);
+  document.getElementById("btnClear").onclick = () => {
+    elInput.value = "";
+    elOutput.textContent = "";
+    elResultBlock.style.display = "none";
+    setStatus("");
+  };
+  document.getElementById("btnCopy").onclick = () => navigator.clipboard.writeText(elOutput.textContent || "");
+  document.getElementById("btnPro").onclick = () => {
+    const code = prompt("Introduce tu código Pro:");
+    if (code && code.trim().toUpperCase() === "PRO-CAFE"){
+      localStorage.setItem("pro","1");
+      pro = true;
+      setStatus("Pro activado ✅", "notice");
+      checkPaywall();
+    } else {
+      setStatus("Código incorrecto.", "error");
+    }
+  };
+</script>
+</body>
+</html>
