@@ -114,12 +114,12 @@
     setStatus("Reescribiendo…", "notice");
 
     try{
-      const r = await fetch(WORKER_URL, {
+      const response = await fetch(WORKER_URL, {
         method: "POST",
         headers: { "Content-Type":"application/json" },
         body: JSON.stringify({ text, mode, variant })
       });
-      const raw = await res.text();
+      const raw = await response.text();
 console.log("RAW RESPONSE:", raw);
 
 let data;
