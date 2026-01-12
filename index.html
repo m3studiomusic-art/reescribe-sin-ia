@@ -128,7 +128,7 @@ try {
 } catch (e) {
   throw new Error("No es JSON. Respuesta: " + raw.slice(0, 120));
 }
-      if (!r.ok) throw new Error(data?.error || "Error");
+      if (!response.ok) throw new Error(data?.error || "Error");
 
       elOutput.textContent = data.result;
       elResultBlock.style.display = "block";
